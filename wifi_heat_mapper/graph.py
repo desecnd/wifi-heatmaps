@@ -4,6 +4,7 @@ from wifi_heat_mapper.debugger import log_arguments
 from PIL import Image
 import matplotlib.pyplot as plt
 import numpy as np
+import math
 from matplotlib.pyplot import imread
 from scipy.interpolate import Rbf
 from tqdm import tqdm
@@ -107,11 +108,9 @@ class GraphPlot:
         if self.conversion:
             self.apply_conversion()
 
-        minimum = 0
-        maximum = max(self.floor_map_dimensions)
-
-        xi = np.linspace(minimum, maximum, 100)
-        yi = np.linspace(minimum, maximum, 100)
+        fdimx, fdimy = self.floor_map_dimensions
+        xi = np.linspace(0, fdimx, 100)
+        yi = np.linspace(0, fdimy, 100)
 
         xi, yi = np.meshgrid(xi, yi)
         di = Rbf(self.processed_results["x"], self.processed_results["y"],
@@ -120,29 +119,41 @@ class GraphPlot:
         zi[zi < self.vmin] = self.vmin
         zi[zi > self.vmax] = self.vmax
 
-        fig, ax = plt.subplots(1, 1)
+        fig, ax = plt.subplots(1, 1, figsize=(fdimx / 100, fdimy / 100))
 
         bench_plot = ax.contourf(xi, yi, zi, cmap="RdYlBu_r", vmin=self.vmin, vmax=self.vmax,
                                  alpha=0.5, zorder=150, antialiased=True, levels=levels)
 
+        fdim_coef = math.sqrt(fdimx * fdimy)
+        marker_size = max(4, fdim_coef // 210) 
         ax.plot(self.processed_results["x"], self.processed_results["y"], zorder=200, marker='o',
-                markeredgecolor='black', markeredgewidth=0.5, linestyle='None', markersize=5,
+                markeredgecolor='black', markeredgewidth=0.5, linestyle='None', markersize=marker_size,
                 label="Benchmark Point")
 
         ax.plot(self.processed_results["sx"], self.processed_results["sy"], zorder=250, marker='o',
                 markeredgecolor='black', markerfacecolor="orange", markeredgewidth=0.5,
-                linestyle='None', markersize=5, label="Base Station")
+                linestyle='None', markersize=marker_size, label="Base Station")
 
         ax.imshow(imread(self.floor_map)[::-1], interpolation='bicubic', zorder=1, alpha=1,
                   origin="lower")
 
-        fig.colorbar(bench_plot)
+        title_size = max(10, fdim_coef // 70)
+        label_size = max(7, title_size - 5)
+
+        cb = fig.colorbar(bench_plot)
+        cb.ax.tick_params(labelsize=label_size)
         desc = ConfigurationOptions.configuration[self.key]["description"]
         if self.suffix is not None:
             desc = desc.format(self.suffix)
-        plt.title("{0}".format(desc))
+
+        plt.title("{0}".format(desc), fontsize=title_size)
         plt.axis('off')
-        plt.legend(bbox_to_anchor=(0.55, -0.05), ncol=2)
+        plt.legend(
+            loc='upper center', 
+            bbox_to_anchor=(0.5, -0.05), 
+            ncol=2, 
+            prop={"size": label_size}
+        )
         file_name = "{0}.{1}".format(self.key, file_type)
         plt.savefig(file_name, format=file_type, dpi=dpi)
 
